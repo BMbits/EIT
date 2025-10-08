@@ -1,0 +1,5 @@
+{
+  "name": "Excel Insider Trading Analyzer",
+  "description": "An application to upload and analyze insider trading data from an Excel file. It provides aggregated summaries, visualizations, and AI-powered insights using Gemini.",
+  "requestFramePermissions": []
+}
