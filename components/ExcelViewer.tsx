@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { RawExcelData } from '../types';
 import { SearchIcon, CloseIcon, DocumentIcon, SumIcon } from './icons';
@@ -6,6 +7,12 @@ interface ExcelViewerProps {
   rawData: RawExcelData;
   fileName: string;
   onClose: () => void;
+}
+
+interface ColumnCalcs {
+  sum: number;
+  count: number;
+  average: number;
 }
 
 const isNumeric = (val: any): boolean => {
@@ -95,44 +102,30 @@ const ExcelViewer: React.FC<ExcelViewerProps> = ({ rawData, fileName, onClose })
       })
   }
 
-  const totals = useMemo(() => {
+  const columnCalculations = useMemo(() => {
     if (selectedColumnsForSum.length === 0 || dataRows.length === 0) {
       return null;
     }
 
-    const newTotals = new Map<number, number>();
+    const newCalcs = new Map<number, ColumnCalcs>();
     selectedColumnsForSum.forEach(colIndex => {
-        let columnTotal = 0;
-        for (const row of dataRows) {
-            const cellValue = row[colIndex];
-            columnTotal += parseFloat(String(cellValue).replace(/,/g, '')) || 0;
+      let sum = 0;
+      let count = 0;
+      for (const row of dataRows) {
+        const cellValue = row[colIndex];
+        if (isNumeric(cellValue)) {
+          sum += parseFloat(String(cellValue).replace(/,/g, ''));
+          count++;
         }
-        newTotals.set(colIndex, columnTotal);
+      }
+      newCalcs.set(colIndex, {
+        sum,
+        count,
+        average: count > 0 ? sum / count : 0,
+      });
     });
-    
-    return newTotals;
-
+    return newCalcs;
   }, [dataRows, selectedColumnsForSum]);
-
-  const divisionResult = useMemo(() => {
-    if (selectedColumnsForSum.length !== 2 || !totals) {
-      return null;
-    }
-    const [colIndex1, colIndex2] = selectedColumnsForSum;
-    const total1 = totals.get(colIndex1);
-    const total2 = totals.get(colIndex2);
-
-    if (total1 === undefined || total2 === undefined) {
-      return null;
-    }
-
-    if (total2 === 0) {
-      return { total1, total2, result: 'N/A' };
-    }
-
-    const result = total1 / total2;
-    return { total1, total2, result };
-  }, [selectedColumnsForSum, totals]);
   
   const highlightMatches = (text: string) => {
     if (!searchTerm.trim()) {
@@ -214,7 +207,7 @@ const ExcelViewer: React.FC<ExcelViewerProps> = ({ rawData, fileName, onClose })
                       <div className="flex items-center gap-2">
                         <span>{header}</span>
                         {summableColumns.has(index) && (
-                            <button onClick={() => toggleColumnSum(index)} title="Sum this column" className="p-1 rounded-md hover:bg-gray-600">
+                            <button onClick={() => toggleColumnSum(index)} title="Calculate for this column" className="p-1 rounded-md hover:bg-gray-600">
                                 <SumIcon className={`w-4 h-4 transition-colors ${selectedColumnsForSum.includes(index) ? 'text-yellow-400' : 'text-gray-500'}`} />
                             </button>
                         )}
@@ -234,51 +227,6 @@ const ExcelViewer: React.FC<ExcelViewerProps> = ({ rawData, fileName, onClose })
                   </tr>
                 ))}
               </tbody>
-              {totals && (
-                <tfoot className="sticky bottom-0 bg-gray-900 z-10">
-                  <tr className="border-t-2 border-gray-600 font-semibold text-white">
-                    {headers.map((_, index) => {
-                      let content: React.ReactNode = null;
-                      
-                      if (index === 0) {
-                        content = 'Selected Totals (Filtered)';
-                      }
-
-                      if (totals.has(index)) {
-                        content = totals.get(index)?.toLocaleString('en-IN') ?? '0';
-                      }
-
-                      return (
-                        <td key={`total-${index}`} className={`p-3 ${totals.has(index) ? 'text-right text-yellow-300 font-mono' : 'text-gray-400'}`}>
-                           {content}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  {divisionResult && (
-                    <tr className="border-t border-gray-700 bg-gray-800">
-                      <td className="p-3 text-gray-400 font-semibold" colSpan={headers.length}>
-                        <div className="flex justify-between items-center w-full">
-                          <span>
-                            Division Total (1st / 2nd selected column)
-                          </span>
-                          <span className="font-mono text-yellow-300">
-                            {`${divisionResult.total1.toLocaleString('en-IN')} / ${divisionResult.total2.toLocaleString('en-IN')} = `}
-                            <strong className="text-lg text-yellow-200">
-                              {typeof divisionResult.result === 'number'
-                                ? divisionResult.result.toLocaleString('en-IN', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 4,
-                                  })
-                                : divisionResult.result}
-                            </strong>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tfoot>
-              )}
             </table>
           ) : (
              <div className="flex items-center justify-center h-full">
@@ -293,6 +241,38 @@ const ExcelViewer: React.FC<ExcelViewerProps> = ({ rawData, fileName, onClose })
             </div>
           )}
         </div>
+        
+        {columnCalculations && (
+          <footer className="flex-shrink-0 p-4 border-t border-gray-700 bg-gray-900/60 backdrop-blur-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {selectedColumnsForSum.map(colIndex => {
+                const calcs = columnCalculations.get(colIndex);
+                const header = headers[colIndex] || `Column ${colIndex + 1}`;
+                if (!calcs) return null;
+
+                return (
+                  <div key={colIndex} className="bg-gray-700/50 p-3 rounded-lg border border-gray-600/50">
+                    <h4 className="text-sm font-bold text-blue-300 truncate" title={header}>{header}</h4>
+                    <div className="mt-2 space-y-1.5 text-sm">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-gray-400">Sum:</span>
+                        <span className="font-mono text-yellow-300">{calcs.sum.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-gray-400">Average:</span>
+                        <span className="font-mono text-yellow-300">{calcs.average.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-gray-400">Count:</span>
+                        <span className="font-mono text-yellow-300">{calcs.count.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   );

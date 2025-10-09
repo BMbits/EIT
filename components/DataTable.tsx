@@ -45,7 +45,7 @@ const DataTable: React.FC<DataTableProps> = ({ transactions, fileName, onViewRaw
     return sortedData.slice(startIndex, startIndex + rowsPerPage);
   }, [sortedData, currentPage, rowsPerPage]);
   
-  const totals = useMemo(() => {
+  const filteredTotals = useMemo(() => {
     return filteredData.reduce(
       (acc, transaction) => {
         acc.numSecurities += transaction.numSecurities;
@@ -55,6 +55,17 @@ const DataTable: React.FC<DataTableProps> = ({ transactions, fileName, onViewRaw
       { numSecurities: 0, value: 0 }
     );
   }, [filteredData]);
+
+  const grandTotals = useMemo(() => {
+    return transactions.reduce(
+      (acc, transaction) => {
+        acc.numSecurities += transaction.numSecurities;
+        acc.value += transaction.value;
+        return acc;
+      },
+      { numSecurities: 0, value: 0 }
+    );
+  }, [transactions]);
 
   const totalPages = Math.ceil(sortedData.length / rowsPerPage);
 
@@ -184,16 +195,28 @@ const DataTable: React.FC<DataTableProps> = ({ transactions, fileName, onViewRaw
                 </tr>
                 ))}
             </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-600 bg-gray-900/50 font-semibold text-white">
+            <tfoot className="bg-gray-900/50 font-semibold text-white">
+              <tr className="border-t-2 border-gray-600">
                 <td className="p-5 text-sm" colSpan={2}>
-                  Totals (for filtered data)
+                  Filtered Total
                 </td>
                 <td className="p-5 text-sm text-right">
-                  {totals.numSecurities.toLocaleString('en-IN')}
+                  {filteredTotals.numSecurities.toLocaleString('en-IN')}
                 </td>
                 <td className="p-5 text-sm text-right">
-                  ₹{totals.value.toLocaleString('en-IN')}
+                  ₹{filteredTotals.value.toLocaleString('en-IN')}
+                </td>
+                <td className="p-5" colSpan={2}></td>
+              </tr>
+              <tr className="border-t border-gray-700">
+                <td className="p-5 text-sm text-gray-400" colSpan={2}>
+                  Grand Total (all data)
+                </td>
+                <td className="p-5 text-sm text-right text-gray-400">
+                  {grandTotals.numSecurities.toLocaleString('en-IN')}
+                </td>
+                <td className="p-5 text-sm text-right text-gray-400">
+                  ₹{grandTotals.value.toLocaleString('en-IN')}
                 </td>
                 <td className="p-5" colSpan={2}></td>
               </tr>
